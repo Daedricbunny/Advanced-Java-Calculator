@@ -1,10 +1,10 @@
-package daedricbunny.advancedjavacalculator;
+package advancedjavacalculator;
 
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
-import daedricbunny.advancedjavacalculator.Token.TokenType;
+import advancedjavacalculator.Token.TokenType;
 
 public class Lexer {
 	public static List<Token> doString(String input, String source) throws CalcException {

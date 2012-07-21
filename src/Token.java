@@ -1,4 +1,5 @@
-package daedricbunny.advancedjavacalculator;
+package advancedjavacalculator;
+
 public class Token {
 	
 	enum TokenType {
