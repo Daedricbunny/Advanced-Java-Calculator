@@ -1,3 +1,9 @@
+// This file is distributed under the Feel free to use it or add anything to it license.
+// You are permitted to:
+// - Use the software
+// - Add anything to the software
+//
+
 package advancedjavacalculator;
 
 public class Token {
