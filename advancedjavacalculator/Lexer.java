@@ -13,8 +13,8 @@ import java.util.List;
 import advancedjavacalculator.Token.TokenType;
 
 public class Lexer {
-	public static List<Token> doString(String input, String source) throws CalcException {
-		Lexer lexer = new Lexer(input, source);
+	public static List<Token> doString(String input) throws CalcException {
+		Lexer lexer = new Lexer(input);
 
 		List<Token> tokens = new ArrayList<>();
 		Token token = lexer.nextToken();
@@ -61,21 +61,17 @@ public class Lexer {
 
 	private final static char EOF = '\0';
 	private final static char EOL = '\n';
-	private final static char COMMENT = '/';
 
 	private String input;
-	private String source;
-	private int len, start, index, col, line, lastLineCol;
+	private int len, start, index;
 	private char ch;
 	private String value;
 
-	private Lexer(String input, String source) {
+	private Lexer(String input) {
 		this.input = input;
-		this.source = source;
 
 		len = input.length();
 		start = index = 0;
-		col = line = lastLineCol = 1;
 		value = "";
 	}
 
@@ -92,15 +88,10 @@ public class Lexer {
 				return ident();
 			} else if (Character.isDigit(ch)) {
 				return completeNumber();
-			} else if (ch == COMMENT) {
-				boolean commt = comment();
-				start = index;
-				if (commt) {
-					continue;
-				}
 			} else {
 				return symbol();
 			}
+
 		}
 		value = "(eof)";
 		return make(TokenType.Eof);
@@ -108,7 +99,7 @@ public class Lexer {
 
 	private Token symbol() throws CalcException {
 		value = Character.toString(ch);
-		advCol();
+		index++;
 		for (;;) {
 			ch = getCh();
 			if (index >= len || Character.isWhitespace(ch) || Character.isLetterOrDigit(ch)) {
@@ -116,7 +107,14 @@ public class Lexer {
 			}
 
 			value += ch;
-			advCol();
+			index++;
+
+		}
+		
+		if(value.equals("-") && Character.isDigit(getCh())) {
+			ch = '-';
+			index--;
+			return completeNumber();
 		}
 
 		if (TokenType.isValidSymbol(value)) {
@@ -139,7 +137,7 @@ public class Lexer {
 				if (tempSym != null && !tempSym.isEmpty() && TokenType.isValidSymbol(tempSym)) {
 
 					for (int j = 0; j < (value.length() - (i + 1)); j++) {
-						revCol();
+						index--;
 					}
 
 					value = tempSym;
@@ -147,62 +145,10 @@ public class Lexer {
 					return make(TokenType.tokenToType(tempSym));
 				}
 			}
-
-			throw new CalcException("Lexer", "Unknown symbol", source, line, col);
+			throw new CalcException("Lexer", "Unknown symbol");
 		} else {
-			throw new CalcException("Lexer", "Unknown symbol", source, line, col);
-		}
-	}
-
-	private boolean comment() throws CalcException {
-		advCol();
-		ch = getCh();
-		if (ch == COMMENT) {
-			for (;;) {
-				ch = getCh();
-				if (ch == EOL || ch == EOF) {
-					advCol();
-					ch = getCh();
-					break;
-				}
-
-				advCol();
-			}
-
-			return true;
-		} else if (ch == '*') {
-			for (;;) {
-				ch = getCh();
-				if (ch == '*') {
-					advCol();
-					ch = getCh();
-					if (ch == '/') {
-						advCol();
-						ch = getCh();
-
-						if (ch == EOL) {
-							advCol();
-							ch = getCh();
-						}
-
-						break;
-					}
-				} else if (ch == EOL) {
-					lastLineCol = col;
-					col = 1;
-					line++;
-				} else if (ch == EOF) {
-					throw new CalcException("Lexer", "Unterminated long comment", source, line, col);
-				}
-
-				advCol();
-			}
-
-			return true;
-		} else {
-			revCol();
-			revCol();
-			return false;
+			System.out.println(value);
+			throw new CalcException("Lexer", "Unknown symbol");
 		}
 	}
 
@@ -213,7 +159,7 @@ public class Lexer {
 			if (!Character.isDigit(ch) && !hexDigits.contains(Character.toString(ch))) {
 				break;
 			}
-			advCol();
+			index++;
 			value += ch;
 		}
 	}
@@ -224,41 +170,42 @@ public class Lexer {
 			if (!Character.isDigit(ch)) {
 				break;
 			}
-			advCol();
+			index++;
 			value += ch;
 		}
 	}
 
 	private Token completeNumber() throws CalcException {
 		value = Character.toString(ch);
-		advCol();
+		index++;
 
 		char ch2 = getCh();
-		advCol();
+		index++;
 		if (ch == '0' && ch2 == 'x') {
+			value += ch2;
 			hexDigits();
 		} else {
-			revCol();
+			index--;
 			digits();
 
 			if (ch == '.') {
-				advCol();
+				index++;
 				value += ch;
 				digits();
 			}
 
 			if (ch == 'e' || ch == 'E') {
-				advCol();
+				index++;
 				value += ch;
 				ch = getCh();
 
 				if (ch == '-' || ch == '+') {
-					advCol();
+					index++;
 					value += ch;
 					ch = getCh();
 				}
 				if (!Character.isDigit(ch)) {
-					throw new CalcException("Lexer", "Bad exponent", source, line, col);
+					throw new CalcException("Lexer", "Bad exponent");
 				}
 				digits();
 			}
@@ -266,9 +213,8 @@ public class Lexer {
 
 		if (Character.isLetter(ch)) {
 			value += ch;
-			advCol();
-			throw new CalcException("Lexer", "Unexpected character at end of number", source, line,
-					col);
+			index++;
+			throw new CalcException("Lexer", "Unexpected character at end of number");
 		}
 
 		return make(TokenType.Number);
@@ -276,12 +222,12 @@ public class Lexer {
 
 	private Token ident() throws CalcException {
 		value = Character.toString(ch);
-		advCol();
+		index++;
 		for (;;) {
 			ch = getCh();
 			if (Character.isLetterOrDigit(ch) || ch == '_' || ch == '$') {
 				value += ch;
-				advCol();
+				index++;
 			} else {
 				break;
 			}
@@ -297,17 +243,13 @@ public class Lexer {
 	private Token whitespace() throws CalcException {
 		if (ch == '\t') {
 			index++;
-			col += 4;
 		} else if (ch == EOL) {
 			value = "(eol)";
-			advCol();
+			index++;
 			Token token = make(TokenType.Eol);
-			lastLineCol = col;
-			col = 1;
-			line++;
 			return token;
 		} else {
-			advCol();
+			index++;
 		}
 
 		ch = getCh();
@@ -319,28 +261,7 @@ public class Lexer {
 		return (index >= input.length()) ? EOF : input.charAt(index);
 	}
 
-	private void advCol() {
-		index++;
-		col++;
-	}
-
-	private void revCol() {
-		if (line > 1) {
-			if (col == 1) {
-				col = lastLineCol;
-				line--;
-				index--;
-			} else {
-				col--;
-				index--;
-			}
-		} else if (col > 1) {
-			col--;
-			index--;
-		}
-	}
-
 	private Token make(TokenType type) {
-		return new Token(value, source, type, start, index, line, col);
+		return new Token(value, type, start, index);
 	}
 }

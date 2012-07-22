@@ -7,18 +7,19 @@
 package advancedjavacalculator;
 
 public class Token {
-	
+
 	enum TokenType {
 
 		Number(), Ident(), Unknown(),
 
-		Plus("+"), Minus("-"), Times("*"), Divide("/"), Mod("%"), 
-		PlusAssign("+=", false), MinusAssign("-=", false), TimesAssign("*=", false), DivideAssign("/=", false),
-		ModAssign("%=", false), BitOr("|"), BitAnd("&"), BitOrAssign("|=", false), BitAndAssign("&=", false),
-		Xor("^"), XorAssign("^=", false), ShiftRight(">>", false), ShiftLeft("<<", false), ShiftRightAssign(">>=", false),
-		ShiftLeftAssign("<<=", false), UnsignRight(">>>", false), UnsignRightAssign(">>>=", false),
-		
-		Assign("="), Dot("."), OpenParen("("), CloseParen(")"), Comma(","), Eol("\n"), Eof("\0");
+		Plus("+"), Minus("-"), Times("*"), Divide("/"), Mod("%"), Pow("**", false), PlusAssign(
+				"+=", false), MinusAssign("-=", false), TimesAssign("*=", false), DivideAssign(
+				"/=", false), ModAssign("%=", false), PowAssign("**=", false), BitOr("|"), BitAnd(
+				"&"), BitOrAssign("|=", false), BitAndAssign("&=", false), BitXor("^"), BitXorAssign(
+				"^=", false), ShiftRight(">>", false), ShiftLeft("<<", false), ShiftRightAssign(
+				">>=", false), ShiftLeftAssign("<<=", false),
+
+		Assign("="), OpenParen("("), CloseParen(")"), Comma(","), Eol("\n"), Eof("\0");
 
 		private String match;
 		private boolean keyword;
@@ -74,28 +75,20 @@ public class Token {
 		}
 
 	}
-	
-	private String match, source;
+
+	private String match;
 	private TokenType type;
 	private int start, end;
-	private int line, column;
 
-	Token(String match, String source, TokenType type, int start, int end, int line, int column) {
+	Token(String match, TokenType type, int start, int end) {
 		this.match = (match.equals("\n")) ? "\\n" : match;
-		this.source = source;
 		this.type = type;
 		this.start = start;
 		this.end = end;
-		this.line = line;
-		this.column = column - (end - start);
 	}
 
 	public String getMatch() {
 		return match;
-	}
-
-	public String getSource() {
-		return source;
 	}
 
 	public TokenType getType() {
@@ -108,14 +101,6 @@ public class Token {
 
 	public int getEnd() {
 		return end;
-	}
-
-	public int getLine() {
-		return line;
-	}
-
-	public int getColumn() {
-		return column;
 	}
 
 }
