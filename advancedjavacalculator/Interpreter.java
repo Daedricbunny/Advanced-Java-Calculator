@@ -7,241 +7,298 @@
 package advancedjavacalculator;
 
 import java.lang.reflect.Method;
-import java.math.BigDecimal;
-import java.math.BigInteger;
+import java.math.MathContext;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import advancedjavacalculator.Expr.AssignExpr;
 import advancedjavacalculator.Expr.BinaryOpExpr;
 import advancedjavacalculator.Expr.CallExpr;
 import advancedjavacalculator.Expr.GroupExpr;
 import advancedjavacalculator.Expr.LiteralExpr;
 import advancedjavacalculator.Token.TokenType;
+import advancedjavacalculator.Type.Func;
+import advancedjavacalculator.Type.Num;
+import advancedjavacalculator.Type.Obj;
+import advancedjavacalculator.Type.RealNum;
 
 public class Interpreter {
-
-	public static class Num {
-
-		private BigDecimal internalNum;
-
-		protected Num(BigDecimal internalNum) {
-			this.internalNum = internalNum;
-		}
-
-		protected Num(String internalNum) {
-			this(new BigDecimal(internalNum));
-		}
-
-		public BigDecimal getInternalNum() {
-			return internalNum;
-		}
-
-		@Override
-		public String toString() {
-			return internalNum.toString();
-		}
-
-	}
 
 	public static class Scope {
 
 		private Map<String, Num> constants = new HashMap<String, Num>();
-		private Map<String, Num> variables = new HashMap<String, Num>();
-		private Map<String, Func> functions = new HashMap<String, Func>();
+		private Map<String, Obj> variables = new HashMap<String, Obj>();
+
+		public void addVariable(String name, Obj obj) {
+			variables.put(name, obj);
+		}
+
+		public void addConstant(String name, Num num) {
+			constants.put(name, num);
+		}
+
+		public Obj getVariable(String name) throws CalcException {
+			Obj obj = variables.get(name);
+			if (obj == null) {
+				throw new CalcException("Interpreter", "The variable %s was not found", name);
+			}
+			return obj;
+		}
+
+		public Obj getVariableNoError(String name) {
+			try {
+				return getVariable(name);
+			} catch (CalcException e) {
+				return null;
+			}
+		}
+
+		public Num getNumber(String name) throws CalcException {
+			Obj obj = variables.get(name);
+
+			if (obj == null) {
+				throw new CalcException("Interpreter", "The variable %s was not found", name);
+			} else if (obj.getType() != Type.Num) {
+				throw new CalcException("Interpreter", "Expected the variable %s to have type Num",
+						name);
+			}
+
+			return (Num) obj;
+		}
+
+		public Num getNumberNoError(String name) {
+			try {
+				return getNumber(name);
+			} catch (CalcException e) {
+				return null;
+			}
+		}
+
+		public Func getFunction(String name) throws CalcException {
+			Obj obj = variables.get(name);
+
+			if (obj == null) {
+				throw new CalcException("Interpreter", "The function %s was not found", name);
+			} else if (obj.getType() != Type.Func) {
+				throw new CalcException("Interpreter",
+						"Expected the variable %s to have type Func", name);
+			}
+
+			return (Func) obj;
+		}
+
+		public Func getFunctionNoError(String name) {
+			try {
+				return getFunction(name);
+			} catch (CalcException e) {
+				return null;
+			}
+		}
+
+		public Num getConstant(String name) throws CalcException {
+			Num num = constants.get(name);
+			if (num == null) {
+				throw new CalcException("Interpreter", "The constant %s was not found", name);
+			}
+
+			return num;
+		}
+
+		public Num getConstantNoError(String name) {
+			try {
+				return getConstant(name);
+			} catch (CalcException e) {
+				return null;
+			}
+		}
+
+		public Num getNumberOrConstant(String name) throws CalcException {
+			Num num = getNumberNoError(name);
+			if (num == null) {
+				num = getConstantNoError(name);
+				if (num == null) {
+					throw new CalcException("Interpreter", "The variable %s was not found", name);
+				}
+			}
+
+			return num;
+		}
 
 		public Map<String, Num> getConstants() {
 			return constants;
 		}
 
-		public Map<String, Num> getVariables() {
+		public Map<String, Obj> getVariables() {
 			return variables;
 		}
 
-		public Map<String, Func> getFunctions() {
-			return functions;
-		}
-
 	}
 
-	public static class Func {
-
-		private List<String> arguments;
-		private Expr body;
-
-		public Func(List<String> arguments, Expr body) {
-			this.arguments = arguments;
-			this.body = body;
-		}
-
-		public List<String> getArguments() {
-			return arguments;
-		}
-
-		public Expr getBody() {
-			return body;
-		}
-
-	}
+	public MathContext mathContext = MathContext.DECIMAL128;
 
 	private final Scope scope = new Scope();
 	private Map<String, Method> builtinMethods = new HashMap<String, Method>();
 
 	public Interpreter() {
-		addBuiltinMethod(BuiltinMethods.class, "times2");
+		try {
+			addBuiltinMethod(BuiltinMethods.class, "sqrt");
+			addBuiltinMethod(BuiltinMethods.class, "cbrt");
+			addBuiltinMethod(BuiltinMethods.class, "root");
+		} catch (Exception e) {
+			throw new RuntimeException(e.getLocalizedMessage());
+		}
+
+		scope.addConstant("E", new RealNum(Double.toString(Math.E), mathContext));
+		scope.addConstant("PI", new RealNum(Double.toString(Math.PI), mathContext));
 	}
 
-	public Num interpretExpr(Expr expr, Scope scope) throws CalcException {
+	public Obj interpretExpr(Expr expr, Scope scope) throws CalcException {
 		String match = expr.getToken().getMatch();
+		TokenType tokenType = expr.getToken().getType();
 
 		if (expr instanceof LiteralExpr) {
-			if (expr.getToken().getType() == TokenType.Number) {
-				if (match.equals("0")) {
-					return new Num(BigDecimal.ZERO);
-				} else if (match.equals("1")) {
-					return new Num(BigDecimal.ONE);
-				} else if (match.equals("10")) {
-					return new Num(BigDecimal.TEN);
-				} else {
-					if (match.contains("x")) {
-						return new Num(Integer.toString(Integer.parseInt(match.split("x")[1], 16)));
-					} else {
-						return new Num(match);
-					}
+			if (tokenType == TokenType.Ident) {
+				Obj obj = scope.getConstantNoError(match);
+				if (obj == null) {
+					obj = scope.getVariable(match);
 				}
+				return obj;
 			} else {
-				Num num = scope.getVariables().get(match);
-
-				if (num == null) {
-					num = scope.getConstants().get(match);
-
-					if (num == null) {
-						throw new CalcException("Interpreter", String.format(
-								"The variable %s was not found", match), expr);
-					}
+				if (match.startsWith("0x")) {
+					match = match.substring(2, match.length());
+					return new RealNum(Integer.toString(Integer.parseInt(match, 16)), mathContext);
+				} else {
+					return new RealNum(match, mathContext);
 				}
-
-				return num;
 			}
 		} else if (expr instanceof GroupExpr) {
 			return interpretExpr(((GroupExpr) expr).getExpr(), scope);
 		} else if (expr instanceof BinaryOpExpr) {
-			try {
-				return interpretBinaryOp((BinaryOpExpr) expr, scope);
-			} catch (Exception e) {
-				throw new CalcException("Interpreter", e.getLocalizedMessage());
+			BinaryOpExpr binaryOp = (BinaryOpExpr) expr;
+
+			Obj leftObj = interpretExpr(binaryOp.getLeftExpr(), scope);
+			if (!leftObj.isNumber()) {
+				throw new CalcException("Interpreter", "Invalid left type '%s' for a binary operation", leftObj.getType());
 			}
+
+			Obj rightObj = interpretExpr(binaryOp.getRightExpr(), scope);
+			if (!rightObj.isNumber()) {
+				throw new CalcException("Interpreter", "Invalid right type '%s' for a binary operation", rightObj.getType());
+			}
+
+			Num left = (Num) leftObj;
+			Num right = (Num) rightObj;
+
+			switch (expr.getToken().getType()) {
+				case Plus:
+					return left.add(right);
+				case Minus:
+					return left.sub(right);
+				case Times:
+					return left.mul(right);
+				case Divide:
+					return left.div(right);
+				case Mod:
+					return left.mod(right);
+				case Pow:
+					return left.pow(right);
+				default:
+					break;
+			}
+
 		} else if (expr instanceof CallExpr) {
-			CallExpr callExpr = (CallExpr) expr;
-			String name = callExpr.getExpr().toString();
-
+			CallExpr call = (CallExpr) expr;
+			String name = call.getExpr().toString();
 			Method method = builtinMethods.get(name);
-
 			if (method != null) {
-				List<Num> arguments = new ArrayList<Num>();
-
-				for (Expr arg : callExpr.getArguments()) {
-					arguments.add(interpretExpr(arg, scope));
+				List<Obj> args = new ArrayList<Obj>();
+				for (Expr arg : call.getArguments()) {
+					args.add(interpretExpr(arg, scope));
 				}
 
+				Obj ret;
 				try {
-					return (Num) method.invoke(null, new Object[] { arguments.toArray(new Num[arguments.size()]) });
+					ret = (Obj) method.invoke(null,
+							new Object[] { this, args.toArray(new Obj[args.size()]) });
 				} catch (Exception e) {
-					throw new CalcException("Interpreter", e.getLocalizedMessage());
+					throw new CalcException("Interpreter", e.getCause().getLocalizedMessage());
 				}
+
+				if (!ret.isNumber()) {
+					throw new CalcException("Interpreter", "Invalid return from builtin method %s",
+							name);
+				}
+				return (Num) ret;
+			}
+
+			Func func = scope.getFunction(name);
+
+			if (func.getArguments().size() != call.getArguments().size()) {
+				throw new CalcException("Interpreter",
+						"Number of arguments given doesn't match expected number");
+			}
+
+			Scope funcScope = new Scope();
+			funcScope.getConstants().putAll(this.scope.getConstants());
+			for (int i = 0; i < func.getArguments().size(); i++) {
+				funcScope.addVariable(func.getArguments().get(i),
+						interpretExpr(call.getArguments().get(i), scope));
+			}
+
+			Obj ret = interpretExpr(func.getBody(), funcScope);
+			if (!ret.isNumber()) {
+				throw new CalcException("Interpreter", "Invalid return from function %s", name);
+			}
+			return (Num) ret;
+		} else if (expr instanceof AssignExpr) {
+			AssignExpr assign = (AssignExpr) expr;
+
+			if (assign.getDef().getToken().getType() == TokenType.Ident) {
+				Obj obj = interpretExpr(assign.getVal(), scope);
+				if (obj.getType() != Type.Num) {
+					throw new CalcException("Interpreter", "Invalid value for variable %s", assign
+							.getDef().toString());
+				}
+				scope.addVariable(assign.getDef().toString(), obj);
+				return obj;
 			} else {
-				Func func = scope.getFunctions().get(name);
-
-				if (func == null) {
-					throw new CalcException("Interpreter", "The function %s does not exist", name);
+				CallExpr call = (CallExpr) assign.getDef();
+				List<String> args = new ArrayList<String>();
+				for (Expr arg : call.getArguments()) {
+					args.add(arg.toString());
 				}
 
-				if (func.getArguments().size() != callExpr.getArguments().size()) {
-					throw new CalcException("Interpreter",
-							"The number of arguments given does not match the number required");
-				}
-
-				Scope funcScope = new Scope();
-				for (int i = 0; i < func.getArguments().size(); i++) {
-					String argName = func.getArguments().get(i);
-					Num arg = interpretExpr(callExpr.getArguments().get(i), scope);
-					funcScope.getVariables().put(argName, arg);
-				}
-
-				return interpretExpr(callExpr.getExpr(), funcScope);
+				Func func = new Func(args, assign.getVal());
+				scope.addVariable(call.getExpr().toString(), func);
+				return func;
 			}
 		}
 
 		throw new CalcException("Interpreter", "Not implemented yet");
-	}
 
-	private Num interpretBinaryOp(BinaryOpExpr expr, Scope scope) throws Exception {
-		BigDecimal left = interpretExpr(expr.getLeftExpr(), scope).getInternalNum();
-		BigDecimal right = interpretExpr(expr.getRightExpr(), scope).getInternalNum();
-
-		BigInteger leftInt = new BigInteger(Integer.toString(left.intValueExact()));
-		BigInteger rightInt = new BigInteger(Integer.toString(right.intValueExact()));
-
-		switch (expr.getToken().getType()) {
-			case Plus:
-				return new Num(left.add(right));
-			case Minus:
-				return new Num(left.subtract(right));
-			case Times:
-				return new Num(left.multiply(right));
-			case Divide:
-				return new Num(left.divide(right));
-			case Mod:
-				return new Num(left.divideAndRemainder(right)[1]);
-			case Pow:
-				return pow(left, right);
-			case BitAnd:
-				return new Num(new BigDecimal(leftInt.and(rightInt).toString()));
-			case BitOr:
-				return new Num(new BigDecimal(leftInt.or(rightInt).toString()));
-			case BitXor:
-				return new Num(new BigDecimal(leftInt.xor(rightInt).toString()));
-			case ShiftRight:
-				return new Num(new BigDecimal(leftInt.shiftRight(rightInt.intValue()).toString()));
-			case ShiftLeft:
-				return new Num(new BigDecimal(leftInt.shiftLeft(rightInt.intValue()).toString()));
-			default:
-				throw new CalcException("Interpreter", "Not implemented yet");
-		}
-	}
-
-	private Num pow(BigDecimal left, BigDecimal right) throws Exception {
-		int signOf2 = right.signum();
-		double leftDouble = left.doubleValue();
-
-		right = right.multiply(new BigDecimal(signOf2));
-		BigDecimal remainderOf2 = right.remainder(BigDecimal.ONE);
-		BigDecimal rightIntPart = right.subtract(remainderOf2);
-
-		BigDecimal intPow = left.pow(rightIntPart.intValueExact());
-		BigDecimal doublePow = new BigDecimal(Math.pow(leftDouble, remainderOf2.doubleValue()));
-
-		return new Num(intPow.multiply(doublePow));
 	}
 
 	public Scope getScope() {
 		return scope;
 	}
 
-	public Map<String, Method> getBuiltinMethods() {
-		return builtinMethods;
+	public MathContext getMathContext() {
+		return mathContext;
 	}
 
-	public void addBuiltinMethod(Class<?> clazz, String methodName) {
+	public void setMathContext(MathContext matchContext) {
+		this.mathContext = matchContext;
+	}
+
+	public void addBuiltinMethod(Class<?> clazz, String methodName) throws Exception {
 		addBuiltinMethod(clazz, methodName, methodName);
 	}
 
-	public void addBuiltinMethod(Class<?> clazz, String methodName, String alias) {
-		try {
-			builtinMethods.put(alias, clazz.getMethod(methodName, Num[].class));
-		} catch (Exception e) {
-			throw new RuntimeException(e);
-		}
+	public void addBuiltinMethod(Class<?> clazz, String methodName, String alias) throws Exception {
+		builtinMethods.put(alias,
+				clazz.getMethod(methodName, new Class<?>[] { Interpreter.class, Obj[].class }));
 	}
+
 }

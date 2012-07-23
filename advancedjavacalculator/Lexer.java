@@ -110,11 +110,13 @@ public class Lexer {
 			index++;
 
 		}
-		
-		if(value.equals("-") && Character.isDigit(getCh())) {
-			ch = '-';
-			index--;
-			return completeNumber();
+
+		if (value.equals("-") && Character.isDigit(getCh())) {
+			if ((index > 1 && !Character.isDigit(input.charAt(index - 2))) || (index == 1)) {
+				ch = '-';
+				index--;
+				return completeNumber();
+			}
 		}
 
 		if (TokenType.isValidSymbol(value)) {
@@ -147,7 +149,6 @@ public class Lexer {
 			}
 			throw new CalcException("Lexer", "Unknown symbol");
 		} else {
-			System.out.println(value);
 			throw new CalcException("Lexer", "Unknown symbol");
 		}
 	}
@@ -216,6 +217,8 @@ public class Lexer {
 			index++;
 			throw new CalcException("Lexer", "Unexpected character at end of number");
 		}
+
+		// System.out.println(value + " " + index);
 
 		return make(TokenType.Number);
 	}

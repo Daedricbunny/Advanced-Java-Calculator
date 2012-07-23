@@ -94,6 +94,32 @@ public abstract class Expr {
 
 	}
 
+	public static class AssignExpr extends Expr {
+
+		private Expr def;
+		private Expr val;
+
+		public AssignExpr(Token token, Expr def, Expr val) {
+			super(token);
+			this.def = def;
+			this.val = val;
+		}
+
+		@Override
+		public String toString() {
+			return def + " = " + val;
+		}
+
+		public Expr getDef() {
+			return def;
+		}
+
+		public Expr getVal() {
+			return val;
+		}
+
+	}
+
 	Token token;
 
 	public Expr(Token token) {

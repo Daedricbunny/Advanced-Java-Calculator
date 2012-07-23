@@ -12,12 +12,9 @@ public class Token {
 
 		Number(), Ident(), Unknown(),
 
-		Plus("+"), Minus("-"), Times("*"), Divide("/"), Mod("%"), Pow("**", false), PlusAssign(
+		Plus("+"), Minus("-"), Times("*"), Divide("/"), Mod("%"), Pow("^"), PlusAssign(
 				"+=", false), MinusAssign("-=", false), TimesAssign("*=", false), DivideAssign(
-				"/=", false), ModAssign("%=", false), PowAssign("**=", false), BitOr("|"), BitAnd(
-				"&"), BitOrAssign("|=", false), BitAndAssign("&=", false), BitXor("^"), BitXorAssign(
-				"^=", false), ShiftRight(">>", false), ShiftLeft("<<", false), ShiftRightAssign(
-				">>=", false), ShiftLeftAssign("<<=", false),
+				"/=", false), ModAssign("%=", false), PowAssign("**=", false),
 
 		Assign("="), OpenParen("("), CloseParen(")"), Comma(","), Eol("\n"), Eof("\0");
 

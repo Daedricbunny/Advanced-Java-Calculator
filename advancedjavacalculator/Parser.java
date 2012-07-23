@@ -13,6 +13,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
+import advancedjavacalculator.Expr.AssignExpr;
 import advancedjavacalculator.Expr.BinaryOpExpr;
 import advancedjavacalculator.Expr.CallExpr;
 import advancedjavacalculator.Expr.GroupExpr;
@@ -104,6 +105,43 @@ public class Parser {
 
 	}
 
+	public static class AssignParser implements InfixParser {
+
+		@Override
+		public Expr parse(Parser parser, Token token, Expr leftExpr) throws CalcException {
+			if (!(leftExpr instanceof LiteralExpr || leftExpr instanceof CallExpr)) {
+				throw err();
+			}
+
+			if (leftExpr instanceof LiteralExpr) {
+				if (leftExpr.getToken().getType() != TokenType.Ident) {
+					throw err();
+				}
+			} else {
+				CallExpr callExpr = (CallExpr) leftExpr;
+				for (Expr arg : callExpr.getArguments()) {
+					if (arg.getToken().getType() != TokenType.Ident) {
+						throw err();
+					}
+				}
+			}
+
+			Expr val = parser.parseExpr();
+
+			return new AssignExpr(token, leftExpr, val);
+		}
+
+		private CalcException err() {
+			return new CalcException("Parser", "Invalid variable definition");
+		}
+
+		@Override
+		public int getPrecedence() {
+			return ASSIGNMENT;
+		}
+
+	}
+
 	public static class CalcParser extends Parser {
 
 		public CalcParser(List<Token> tokens) {
@@ -119,14 +157,9 @@ public class Parser {
 			register(TokenType.Mod, new BinaryOpParser(EXPONENT, false));
 			register(TokenType.Pow, new BinaryOpParser(EXPONENT, true));
 
-			register(TokenType.BitOr, new BinaryOpParser(EXPONENT, false));
-			register(TokenType.BitAnd, new BinaryOpParser(EXPONENT, false));
-			register(TokenType.BitXor, new BinaryOpParser(EXPONENT, false));
-			register(TokenType.ShiftLeft, new BinaryOpParser(EXPONENT, false));
-			register(TokenType.ShiftRight, new BinaryOpParser(EXPONENT, false));
-
 			register(TokenType.OpenParen, new GroupParser());
 			register(TokenType.OpenParen, new CallParser());
+			register(TokenType.Assign, new AssignParser());
 		}
 
 	}
